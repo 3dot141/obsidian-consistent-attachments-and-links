@@ -40,22 +40,83 @@ export interface LinkSectionInfo {
 // const wikiEmbedRegexSimple = /\!\[\[(.*?)\]\]/gim
 
 //with escaping \ characters
-const markdownLinkOrEmbedRegexG = /(?<!\\)\[(.*?)(?<!\\)\]\((.*?)(?<!\\)\)/gim
-const markdownLinkRegexG = /(?<!\!)(?<!\\)\[(.*?)(?<!\\)\]\((.*?)(?<!\\)(?:#(.*?))?\)/gim;
-const markdownEmbedRegexG = /(?<!\\)\!\[(.*?)(?<!\\)\]\((.*?)(?<!\\)\)/gim
 
-const wikiLinkOrEmbedRegexG = /(?<!\\)\[\[(.*?)(?<!\\)\]\]/gim
-const wikiLinkRegexG = /(?<!\!)(?<!\\)\[\[(.*?)(?<!\\)\]\]/gim;
-const wikiEmbedRegexG = /(?<!\\)\!\[\[(.*?)(?<!\\)\]\]/gim
+function markdownLinkOrEmbedRegexG2Elements(text: string) {
+	const markdownLinkOrEmbedRegexCompatible = /(\\)?\[(.*?)(\\)?\]\((.*?)(\\)?\)/gim
+	const elements = [];
+	let result;
+	while (result = markdownLinkOrEmbedRegexCompatible.exec(text)) {
+		elements.push(`[${result[2]}](${result[4]})`);
+	}
+	return elements;
+}
 
-const markdownLinkOrEmbedRegex = /(?<!\\)\[(.*?)(?<!\\)\]\((.*?)(?<!\\)\)/im
-const markdownLinkRegex = /(?<!\!)(?<!\\)\[(.*?)(?<!\\)\]\((.*?)(?<!\\)\)/im;
-const markdownEmbedRegex = /(?<!\\)\!\[(.*?)(?<!\\)\]\((.*?)(?<!\\)\)/im
+function markdownLinkRegexG2Elements(text: string) {
+	const markdownLinkRegexG = /(\!)?(\\)?\[(.*?)(\\)?\]\((.*?)(\\)?(?:#(.*?))?\)/gim;
+	const elements = [];
+	let result;
+	while (result = markdownLinkRegexG.exec(text)) {
+		elements.push(`[${result[3]}](${result[5]})`);
+	}
+	return elements;
+}
 
-const wikiLinkOrEmbedRegex = /(?<!\\)\[\[(.*?)(?<!\\)\]\]/im
-const wikiLinkRegex = /(?<!\!)(?<!\\)\[\[(.*?)(?<!\\)\]\]/im;
-const wikiEmbedRegex = /(?<!\\)\!\[\[(.*?)(?<!\\)\]\]/im
+function markdownEmbedRegexG2Elements(text: string) {
 
+	const markdownEmbedRegexG = /(\\)?\!\[(.*?)(\\)?\]\((.*?)(\\)?\)/gim
+	const elements = [];
+	let result;
+	while (result = markdownEmbedRegexG.exec(text)) {
+		elements.push(`![${result[2]}](${result[4]})`);
+	}
+	return elements;
+}
+
+function wikiLinkRegex2Elements(text: string) {
+
+	const wikiLinkRegexG = /(\!)?(\\)?\[\[(.*?)(\\)?\]\]/gim;
+	const elements = [];
+	let result;
+	while (result = wikiLinkRegexG.exec(text)) {
+		elements.push(`[[${result[3]}]]`);
+	}
+	return elements;
+}
+
+function wikiEmbedRegex2Elements(text: string) {
+
+	const wikiEmbedRegexG = /(\\)?\!\[\[(.*?)(\\)?\]\]/gim
+	const elements = [];
+	let result;
+	while (result = wikiEmbedRegexG.exec(text)) {
+		elements.push(`![[${result[2]}]]`);
+	}
+	return elements;
+}
+
+function markdownLinkOrEmbedRegex2Elements(text: string) {
+
+	const markdownLinkOrEmbedRegex = /(\\)?\[(.*?)(\\)?\]\((.*?)(\\)?\)/im
+	const elements = [];
+	let result = markdownLinkOrEmbedRegex.exec(text);
+	// empty placeholder
+	elements.push("")
+	elements.push(result[2]);
+	elements.push(result[4]);
+	return elements;
+}
+
+function markdownLinkRegex2Elements(text: string) {
+
+	const markdownLinkRegex = /(\!)?(\\)?\[(.*?)(\\)?\]\((.*?)(\\)?\)/im;
+	const elements = [];
+	let result = markdownLinkRegex.exec(text);
+	// empty placeholder
+	elements.push("")
+	elements.push(result[3]);
+	elements.push(result[5]);
+	return elements;
+}
 
 export class LinksHandler {
 
@@ -84,35 +145,24 @@ export class LinksHandler {
 	}
 
 	checkIsCorrectMarkdownEmbed(text: string) {
-		let elements = text.match(markdownEmbedRegexG);
+		let elements = markdownEmbedRegexG2Elements(text);
 		return (elements != null && elements.length > 0)
 	}
 
 	checkIsCorrectMarkdownLink(text: string) {
-		let elements = text.match(markdownLinkRegexG);
-		return (elements != null && elements.length > 0)
-	}
-
-	checkIsCorrectMarkdownEmbedOrLink(text: string) {
-		let elements = text.match(markdownLinkOrEmbedRegexG);
+		let elements = markdownLinkRegexG2Elements(text);
 		return (elements != null && elements.length > 0)
 	}
 
 	checkIsCorrectWikiEmbed(text: string) {
-		let elements = text.match(wikiEmbedRegexG);
+		let elements = wikiEmbedRegex2Elements(text);
 		return (elements != null && elements.length > 0)
 	}
 
 	checkIsCorrectWikiLink(text: string) {
-		let elements = text.match(wikiLinkRegexG);
+		let elements = wikiLinkRegex2Elements(text);
 		return (elements != null && elements.length > 0)
 	}
-
-	checkIsCorrectWikiEmbedOrLink(text: string) {
-		let elements = text.match(wikiLinkOrEmbedRegexG);
-		return (elements != null && elements.length > 0)
-	}
-
 
 	getFileByLink(link: string, owningNotePath: string): TFile {
 		return this.app.metadataCache.getFirstLinkpathDest(link, owningNotePath);
@@ -138,66 +188,6 @@ export class LinksHandler {
 		fullPath = Utils.normalizePathForFile(fullPath);
 		return fullPath;
 	}
-
-
-	getAllCachedLinksToFile(filePath: string): { [notePath: string]: LinkCache[]; } {
-		let allLinks: { [notePath: string]: LinkCache[]; } = {};
-		let notes = this.app.vault.getMarkdownFiles();
-
-		if (notes) {
-			for (let note of notes) {
-				if (note.path == filePath)
-					continue;
-
-				//!!! this can return undefined if note was just updated
-				let links = this.app.metadataCache.getCache(note.path)?.links;
-
-				if (links) {
-					for (let link of links) {
-						let linkFullPath = this.getFullPathForLink(link.link, note.path);
-						if (linkFullPath == filePath) {
-							if (!allLinks[note.path])
-								allLinks[note.path] = [];
-							allLinks[note.path].push(link);
-						}
-					}
-				}
-			}
-		}
-
-		return allLinks;
-	}
-
-
-	getAllCachedEmbedsToFile(filePath: string): { [notePath: string]: EmbedCache[]; } {
-		let allEmbeds: { [notePath: string]: EmbedCache[]; } = {};
-		let notes = this.app.vault.getMarkdownFiles();
-
-		if (notes) {
-			for (let note of notes) {
-				if (note.path == filePath)
-					continue;
-
-				//!!! this can return undefined if note was just updated
-				let embeds = this.app.metadataCache.getCache(note.path)?.embeds;
-
-				if (embeds) {
-					for (let embed of embeds) {
-						let linkFullPath = this.getFullPathForLink(embed.link, note.path);
-						if (linkFullPath == filePath) {
-							if (!allEmbeds[note.path])
-								allEmbeds[note.path] = [];
-							allEmbeds[note.path].push(embed);
-						}
-					}
-				}
-			}
-		}
-
-		return allEmbeds;
-	}
-
-
 
 	getAllBadLinks(): { [notePath: string]: LinkCache[]; } {
 		let allLinks: { [notePath: string]: LinkCache[]; } = {};
@@ -264,41 +254,6 @@ export class LinksHandler {
 		return allEmbeds;
 	}
 
-
-	getAllGoodLinks(): { [notePath: string]: LinkCache[]; } {
-		let allLinks: { [notePath: string]: LinkCache[]; } = {};
-		let notes = this.app.vault.getMarkdownFiles();
-
-		if (notes) {
-			for (let note of notes) {
-				if (this.isPathIgnored(note.path))
-					continue;
-
-				//!!! this can return undefined if note was just updated
-				let links = this.app.metadataCache.getCache(note.path)?.links;
-
-				if (links) {
-					for (let link of links) {
-						if (link.link.startsWith("#")) //internal section link
-							continue;
-
-						if (this.checkIsCorrectWikiLink(link.original))
-							continue;
-
-						let file = this.getFileByLink(link.link, note.path);
-						if (file) {
-							if (!allLinks[note.path])
-								allLinks[note.path] = [];
-							allLinks[note.path].push(link);
-						}
-					}
-				}
-			}
-		}
-
-		return allLinks;
-	}
-
 	async getAllBadSectionLinks(): Promise<{ [notePath: string]: LinkCache[]; }> {
 		let allLinks: { [notePath: string]: LinkCache[]; } = {};
 		let notes = this.app.vault.getMarkdownFiles();
@@ -347,37 +302,6 @@ export class LinksHandler {
 		}
 
 		return allLinks;
-	}
-
-	getAllGoodEmbeds(): { [notePath: string]: EmbedCache[]; } {
-		let allEmbeds: { [notePath: string]: EmbedCache[]; } = {};
-		let notes = this.app.vault.getMarkdownFiles();
-
-		if (notes) {
-			for (let note of notes) {
-				if (this.isPathIgnored(note.path))
-					continue;
-
-				//!!! this can return undefined if note was just updated
-				let embeds = this.app.metadataCache.getCache(note.path)?.embeds;
-
-				if (embeds) {
-					for (let embed of embeds) {
-						if (this.checkIsCorrectWikiEmbed(embed.original))
-							continue;
-
-						let file = this.getFileByLink(embed.link, note.path);
-						if (file) {
-							if (!allEmbeds[note.path])
-								allEmbeds[note.path] = [];
-							allEmbeds[note.path].push(embed);
-						}
-					}
-				}
-			}
-		}
-
-		return allEmbeds;
 	}
 
 	getAllWikiLinks(): { [notePath: string]: LinkCache[]; } {
@@ -452,16 +376,6 @@ export class LinksHandler {
 		}
 	}
 
-
-	async updateChangedPathInNote(notePath: string, oldLink: string, newLink: string, changelinksAlt = false) {
-		if (this.isPathIgnored(notePath))
-			return;
-
-		let changes: PathChangeInfo[] = [{ oldPath: oldLink, newPath: newLink }];
-		return await this.updateChangedPathsInNote(notePath, changes, changelinksAlt);
-	}
-
-
 	async updateChangedPathsInNote(notePath: string, changedLinks: PathChangeInfo[], changelinksAlt = false) {
 		if (this.isPathIgnored(notePath))
 			return;
@@ -475,11 +389,12 @@ export class LinksHandler {
 		let text = await this.app.vault.read(file);
 		let dirty = false;
 
-		let elements = text.match(markdownLinkOrEmbedRegexG);
+		let elements = markdownLinkOrEmbedRegexG2Elements(text);
 		if (elements != null && elements.length > 0) {
 			for (let el of elements) {
-				let alt = el.match(markdownLinkOrEmbedRegex)[1];
-				let link = el.match(markdownLinkOrEmbedRegex)[2];
+				let children = markdownLinkOrEmbedRegex2Elements(el);
+				let alt = children[1];
+				let link = children[2];
 				let li = this.splitLinkToPathAndSection(link);
 
 				if (li.hasSection)  // for links with sections like [](note.md#section)
@@ -537,11 +452,12 @@ export class LinksHandler {
 		let text = await this.app.vault.read(file);
 		let dirty = false;
 
-		let elements = text.match(markdownLinkOrEmbedRegexG);
+		let elements = markdownLinkOrEmbedRegexG2Elements(text);
 		if (elements != null && elements.length > 0) {
 			for (let el of elements) {
-				let alt = el.match(markdownLinkOrEmbedRegex)[1];
-				let link = el.match(markdownLinkOrEmbedRegex)[2];
+				let children = markdownLinkOrEmbedRegex2Elements(el);
+				let alt = children[1];
+				let link = children[2];
 				let li = this.splitLinkToPathAndSection(link);
 
 				if (link.startsWith("#")) //internal section link
@@ -688,12 +604,6 @@ export class LinksHandler {
 		return res;
 	}
 
-
-	getFilePathWithRenamedBaseName(filePath: string, newBaseName: string): string {
-		return Utils.normalizePathForFile(path.join(path.dirname(filePath), newBaseName + path.extname(filePath)));
-	}
-
-
 	async getLinksFromNote(notePath: string): Promise<LinkCache[]> {
 		let file = this.getFileByPath(notePath);
 		if (!file) {
@@ -705,11 +615,12 @@ export class LinksHandler {
 
 		let links: LinkCache[] = [];
 
-		let elements = text.match(markdownLinkOrEmbedRegexG);
+		let elements = markdownLinkOrEmbedRegexG2Elements(text);
 		if (elements != null && elements.length > 0) {
 			for (let el of elements) {
-				let alt = el.match(markdownLinkOrEmbedRegex)[1];
-				let link = el.match(markdownLinkOrEmbedRegex)[2];
+				let children = markdownLinkOrEmbedRegex2Elements(el);
+				let alt = children[1];
+				let link = children[2];
 
 				let emb: LinkCache = {
 					link: link,
@@ -801,7 +712,7 @@ export class LinksHandler {
 
 					//!!! link.displayText is always "" - OBSIDIAN BUG?, so get display text manualy
 					if (isMarkdownLink) {
-						let elements = link.original.match(markdownLinkRegex);
+						let elements = markdownLinkRegex2Elements(link.original);
 						if (elements)
 							link.displayText = elements[1];
 					}
